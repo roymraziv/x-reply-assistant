@@ -4,12 +4,13 @@ AI-powered reply co-pilot for X (Twitter). Click ⚡, get AI-generated replies b
 
 ## Features
 
-- One-click AI reply generation on any tweet
+- One-click AI reply generation on any tweet (⚡ button next to reply)
+- Optional **image-aware replies**: analyze up to 4 images in the tweet (uses vision API; more tokens, slower)
 - Custom preset system for different reply intents
 - Master prompt to control tone, style, and rules
 - Regenerate button for alternative replies
-- No backend required - runs entirely in browser
-- API key stored securely in browser storage
+- No backend required — runs entirely in the browser
+- API key stored in browser storage only (never in source)
 
 ## Installation
 
@@ -29,11 +30,12 @@ AI-powered reply co-pilot for X (Twitter). Click ⚡, get AI-generated replies b
    - Paste and click Save
 3. **Write your Master Prompt** (optional but recommended)
    - Example: "You are a friendly tech professional. Keep replies under 280 characters. Be authentic and engaging."
-4. **Create your first preset**
+4. **Settings**: Optionally enable **Analyze images in tweets** if you want replies to consider tweet media (uses more tokens).
+5. **Create your first preset**
    - Label: "Follow Back Connect"
    - Intent: "Express genuine interest and invite them to connect, mention you'll follow back"
    - Click Save Preset
-5. Your first preset will auto-activate
+6. Your first preset will auto-activate
 
 ### 3. Use on X
 
@@ -58,28 +60,29 @@ Switch presets anytime from the popup - no reload needed.
 ## Technical Details
 
 - **Platform**: Chrome Extension (Manifest V3)
-- **AI Provider**: OpenAI GPT-4o-mini
+- **AI Provider**: OpenAI GPT-4o-mini (text + optional vision for tweet images)
 - **Storage**: chrome.storage.local (all data stays in browser)
-- **No build step**: Pure vanilla JS
-- **Performance**: Debounced MutationObserver for smooth scrolling
+- **No build step**: Pure vanilla JS, no bundler
+- **Performance**: Debounced MutationObserver (200ms) for inject on scroll
 
 ## File Structure
 
 ```
-/x-reply-assistant
-  manifest.json          # Extension config
-  /src
-    background.js        # AI API calls
-    content.js           # DOM injection + UI
-    /popup
-      popup.html         # Settings interface
-      popup.js           # Preset management
-      popup.css          # Styling
-  /assets
-    icon16.png           # Extension icons
+x-reply-assistant/
+  manifest.json          # Extension config (MV3)
+  .gitignore
+  README.md
+  src/
+    background.js        # OpenAI API calls (text + optional vision)
+    content.js           # DOM injection, ⚡ button, regenerate
+  src/popup/
+    popup.html           # API key, master prompt, settings, presets
+    popup.js             # Preset CRUD, active preset, analyzeImages
+    popup.css            # Popup styling
+  assets/
+    icon16.png           # Toolbar / store icons (16, 48, 128)
     icon48.png
     icon128.png
-  README.md
 ```
 
 ## Swapping AI Providers

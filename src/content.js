@@ -67,8 +67,8 @@ async function handleClick(aiBtn, replyBtn) {
     return;
   }
 
-  const storage = await chrome.storage.local.get(['masterPrompt', 'presets', 'activePresetId']);
-  const { masterPrompt, presets, activePresetId } = storage;
+  const storage = await chrome.storage.local.get(['masterPrompt', 'presets', 'activePresetId', 'analyzeImages']);
+  const { masterPrompt, presets, activePresetId, analyzeImages } = storage;
   const preset = (presets || []).find(p => p.id === activePresetId);
 
   if (!preset) {
@@ -78,12 +78,19 @@ async function handleClick(aiBtn, replyBtn) {
     return;
   }
 
+  // Extract images if the setting is enabled
+  let imageUrls = [];
+  if (analyzeImages) {
+    imageUrls = extractTweetImages(replyBtn);
+  }
+
   const response = await chrome.runtime.sendMessage({
     type: 'GENERATE_REPLY',
     payload: {
       tweetText,
       masterPrompt: masterPrompt || '',
-      presetIntent: preset.intent
+      presetIntent: preset.intent,
+      imageUrls
     }
   });
 
@@ -102,7 +109,7 @@ async function handleClick(aiBtn, replyBtn) {
   waitForElement(REPLY_BOX_SELECTOR, (box) => {
     fillReplyBox(box, response.reply);
     // FR-04: Inject regenerate button after filling
-    injectRegenerateButton(box, tweetText, masterPrompt, preset);
+    injectRegenerateButton(box, tweetText, masterPrompt, preset, imageUrls);
   });
 }
 
@@ -116,6 +123,46 @@ function extractTweetText(replyBtn) {
     if (textEl) return textEl.innerText.trim();
   }
   return null;
+}
+
+function extractTweetImages(replyBtn) {
+  // Walk up to find the tweet article, then extract all images
+  let el = replyBtn;
+  for (let i = 0; i < 15; i++) {
+    el = el.parentElement;
+    if (!el) break;
+
+    // X uses multiple selectors for images
+    const imageSelectors = [
+      '[data-testid="tweetPhoto"] img',
+      '[data-testid="card.layoutLarge.media"] img',
+      '[data-testid="card.layoutSmall.media"] img',
+      'img[alt*="Image"]',
+      'article img'
+    ];
+
+    for (const selector of imageSelectors) {
+      const images = el.querySelectorAll(selector);
+      if (images.length > 0) {
+        // Extract src URLs and filter out profile pictures and icons
+        const imageUrls = Array.from(images)
+          .map(img => img.src)
+          .filter(src => {
+            // Filter out small images (likely icons/avatars)
+            // X tweet images are typically larger
+            return src &&
+                   !src.includes('profile_images') &&
+                   !src.includes('emoji') &&
+                   (src.includes('media') || src.includes('pbs.twimg.com'));
+          });
+
+        if (imageUrls.length > 0) {
+          return imageUrls;
+        }
+      }
+    }
+  }
+  return [];
 }
 
 function fillReplyBox(box, text) {
@@ -151,7 +198,7 @@ function waitForElement(selector, callback, timeout = 3000) {
 }
 
 // FR-04: Regenerate button implementation
-function injectRegenerateButton(replyBox, tweetText, masterPrompt, preset) {
+function injectRegenerateButton(replyBox, tweetText, masterPrompt, preset, imageUrls = []) {
   // Remove any existing regenerate button first
   const existingBtn = document.getElementById('ai-regenerate-btn');
   if (existingBtn) existingBtn.remove();
@@ -185,7 +232,8 @@ function injectRegenerateButton(replyBox, tweetText, masterPrompt, preset) {
       payload: {
         tweetText,
         masterPrompt: masterPrompt || '',
-        presetIntent: preset.intent
+        presetIntent: preset.intent,
+        imageUrls
       }
     });
 

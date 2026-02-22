@@ -31,3 +31,6 @@ button:hover { background: #1a8cd8; }
 .empty { color: #71767b; font-size: 12px; }
 .status { margin-top: 8px; font-size: 12px; color: #00ba7c; min-height: 16px; }
 #cancelEdit { background: none; border: 1px solid #2f3336; color: #71767b; }
+.checkbox-row { padding: 8px 10px; background: #1e2732; border: 1px solid #2f3336; border-radius: 6px; }
+.checkbox-row label { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.checkbox-row input[type=checkbox] { cursor: pointer; width: auto; }

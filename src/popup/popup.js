@@ -1,11 +1,12 @@
-let state = { masterPrompt: '', presets: [], activePresetId: null, apiKey: '' };
+let state = { masterPrompt: '', presets: [], activePresetId: null, apiKey: '', analyzeImages: false };
 
 async function loadState() {
-  const data = await chrome.storage.local.get(['masterPrompt', 'presets', 'activePresetId', 'apiKey']);
+  const data = await chrome.storage.local.get(['masterPrompt', 'presets', 'activePresetId', 'apiKey', 'analyzeImages']);
   state.masterPrompt = data.masterPrompt || '';
   state.presets = data.presets || [];
   state.activePresetId = data.activePresetId || null;
   state.apiKey = data.apiKey || '';
+  state.analyzeImages = data.analyzeImages || false;
 }
 
 async function saveState(partial) {
@@ -92,6 +93,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('apiKey').value = state.apiKey;
   document.getElementById('masterPrompt').value = state.masterPrompt;
+  document.getElementById('analyzeImages').checked = state.analyzeImages;
   renderPresets();
 
   document.getElementById('saveApiKey').addEventListener('click', async () => {
@@ -102,6 +104,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('saveMasterPrompt').addEventListener('click', async () => {
     await saveState({ masterPrompt: document.getElementById('masterPrompt').value.trim() });
     showStatus('Master prompt saved.');
+  });
+
+  document.getElementById('analyzeImages').addEventListener('change', async (e) => {
+    await saveState({ analyzeImages: e.target.checked });
+    showStatus(`Image analysis ${e.target.checked ? 'enabled' : 'disabled'}.`);
   });
 
   document.getElementById('savePreset').addEventListener('click', async () => {
