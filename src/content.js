@@ -119,23 +119,43 @@ function extractTweetText(replyBtn) {
 }
 
 function fillReplyBox(box, text) {
+  // X uses Draft.js - we need to work with its internal state
   box.focus();
 
-  // X uses React with contenteditable. We need to trigger React's event system.
-  // Setting innerText directly and dispatching 'input' event works with React.
-  box.innerText = text;
-
-  // Dispatch input event so React picks up the change
-  const inputEvent = new Event('input', { bubbles: true });
-  box.dispatchEvent(inputEvent);
-
-  // Move cursor to end
+  // Method 1: Try selecting all and using execCommand (most compatible)
   const selection = window.getSelection();
   const range = document.createRange();
   range.selectNodeContents(box);
-  range.collapse(false);
   selection.removeAllRanges();
   selection.addRange(range);
+
+  // Use execCommand which Draft.js should handle
+  const success = document.execCommand('insertText', false, text);
+
+  // Method 2: Fallback if execCommand fails or Draft.js doesn't respond
+  if (!success) {
+    box.textContent = text;
+
+    // Trigger multiple events that Draft.js might listen to
+    ['input', 'change', 'textInput'].forEach(eventType => {
+      const event = new Event(eventType, { bubbles: true });
+      box.dispatchEvent(event);
+    });
+  }
+
+  // Method 3: Nuclear option - dispatch composition events (what IME uses)
+  const compositionStart = new CompositionEvent('compositionstart', { bubbles: true });
+  const compositionEnd = new CompositionEvent('compositionend', { bubbles: true, data: text });
+  box.dispatchEvent(compositionStart);
+  box.dispatchEvent(compositionEnd);
+
+  // Final check and force update if needed
+  setTimeout(() => {
+    if (box.textContent !== text) {
+      box.textContent = text;
+      box.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  }, 100);
 }
 
 function waitForElement(selector, callback, timeout = 3000) {
