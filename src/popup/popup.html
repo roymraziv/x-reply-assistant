@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="stylesheet" href="popup.css" />
+  <title>X Reply Assistant</title>
+</head>
+<body>
+  <div class="container">
+    <h2>⚡ X Reply Assistant</h2>
+
+    <!-- API Key -->
+    <section class="section">
+      <label class="section-label">OpenAI API Key</label>
+      <div class="row">
+        <input type="password" id="apiKey" placeholder="sk-..." />
+        <button id="saveApiKey">Save</button>
+      </div>
+    </section>
+
+    <!-- Master Prompt -->
+    <section class="section">
+      <label class="section-label">Master Prompt</label>
+      <textarea id="masterPrompt" rows="4" placeholder="Define global tone, rules, length..."></textarea>
+      <button id="saveMasterPrompt">Save Master Prompt</button>
+    </section>
+
+    <!-- Presets -->
+    <section class="section">
+      <label class="section-label">Presets</label>
+      <div id="presetList"></div>
+    </section>
+
+    <!-- Add Preset -->
+    <section class="section">
+      <label class="section-label">Add / Edit Preset</label>
+      <input type="hidden" id="editingPresetId" />
+      <input type="text" id="newPresetLabel" placeholder="Label (e.g. Follow Back Connect)" />
+      <textarea id="newPresetIntent" rows="3" placeholder="Intent (e.g. Express genuine interest and invite them to connect, mention you'll follow back)"></textarea>
+      <div class="row">
+        <button id="savePreset">Save Preset</button>
+        <button id="cancelEdit" style="display:none">Cancel</button>
+      </div>
+    </section>
+
+    <div id="statusMsg" class="status"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
