@@ -119,43 +119,22 @@ function extractTweetText(replyBtn) {
 }
 
 function fillReplyBox(box, text) {
-  // X uses Draft.js - we need to work with its internal state
+  // X uses Draft.js - the key is to let Draft.js process changes naturally
   box.focus();
 
-  // Method 1: Try selecting all and using execCommand (most compatible)
-  const selection = window.getSelection();
-  const range = document.createRange();
-  range.selectNodeContents(box);
-  selection.removeAllRanges();
-  selection.addRange(range);
-
-  // Use execCommand which Draft.js should handle
-  const success = document.execCommand('insertText', false, text);
-
-  // Method 2: Fallback if execCommand fails or Draft.js doesn't respond
-  if (!success) {
-    box.textContent = text;
-
-    // Trigger multiple events that Draft.js might listen to
-    ['input', 'change', 'textInput'].forEach(eventType => {
-      const event = new Event(eventType, { bubbles: true });
-      box.dispatchEvent(event);
-    });
-  }
-
-  // Method 3: Nuclear option - dispatch composition events (what IME uses)
-  const compositionStart = new CompositionEvent('compositionstart', { bubbles: true });
-  const compositionEnd = new CompositionEvent('compositionend', { bubbles: true, data: text });
-  box.dispatchEvent(compositionStart);
-  box.dispatchEvent(compositionEnd);
-
-  // Final check and force update if needed
+  // Wait a tick for focus to settle
   setTimeout(() => {
-    if (box.textContent !== text) {
-      box.textContent = text;
-      box.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-  }, 100);
+    // Select all existing content in the box (if any)
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(box);
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    // Use execCommand to insert text - Draft.js handles this properly
+    // This works because Draft.js listens to the selection and mutation changes
+    document.execCommand('insertText', false, text);
+  }, 10);
 }
 
 function waitForElement(selector, callback, timeout = 3000) {
