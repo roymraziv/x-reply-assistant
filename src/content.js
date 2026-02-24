@@ -90,6 +90,7 @@ async function handleClick(aiBtn, replyBtn) {
       tweetText,
       masterPrompt: masterPrompt || '',
       presetIntent: preset.intent,
+      model: preset.model || 'gpt-4.1-mini',
       imageUrls
     }
   });
@@ -233,6 +234,7 @@ function injectRegenerateButton(replyBox, tweetText, masterPrompt, preset, image
         tweetText,
         masterPrompt: masterPrompt || '',
         presetIntent: preset.intent,
+        model: preset.model || 'gpt-4.1-mini',
         imageUrls
       }
     });

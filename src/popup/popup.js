@@ -30,6 +30,7 @@ function renderPresets() {
       <label>
         <input type="radio" name="activePreset" value="${preset.id}" ${preset.id === state.activePresetId ? 'checked' : ''} />
         <span>${preset.label}</span>
+        <span class="preset-model">${preset.model || 'gpt-4.1-mini'}</span>
       </label>
       <div class="preset-actions">
         <button data-id="${preset.id}" class="edit-btn">Edit</button>
@@ -62,6 +63,7 @@ function loadPresetForEdit(id) {
   document.getElementById('editingPresetId').value = id;
   document.getElementById('newPresetLabel').value = preset.label;
   document.getElementById('newPresetIntent').value = preset.intent;
+  document.getElementById('newPresetModel').value = preset.model || 'gpt-4.1-mini';
   document.getElementById('cancelEdit').style.display = 'inline-block';
   document.getElementById('savePreset').textContent = 'Update Preset';
 }
@@ -70,6 +72,7 @@ function clearPresetForm() {
   document.getElementById('editingPresetId').value = '';
   document.getElementById('newPresetLabel').value = '';
   document.getElementById('newPresetIntent').value = '';
+  document.getElementById('newPresetModel').value = 'gpt-4.1-mini';
   document.getElementById('cancelEdit').style.display = 'none';
   document.getElementById('savePreset').textContent = 'Save Preset';
 }
@@ -115,6 +118,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const editingId = document.getElementById('editingPresetId').value;
     const label = document.getElementById('newPresetLabel').value.trim();
     const intent = document.getElementById('newPresetIntent').value.trim();
+    const model = document.getElementById('newPresetModel').value;
 
     if (!label || !intent) { showStatus('Label and intent are required.'); return; }
 
@@ -122,10 +126,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     let newActivePresetId = state.activePresetId;
 
     if (editingId) {
-      updatedPresets = state.presets.map(p => p.id === editingId ? { ...p, label, intent } : p);
+      updatedPresets = state.presets.map(p => p.id === editingId ? { ...p, label, intent, model } : p);
       showStatus('Preset updated.');
     } else {
-      const newPreset = { id: `preset_${Date.now()}`, label, intent };
+      const newPreset = { id: `preset_${Date.now()}`, label, intent, model };
       updatedPresets = [...state.presets, newPreset];
       // Auto-activate first preset
       if (updatedPresets.length === 1) {

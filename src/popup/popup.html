@@ -48,6 +48,12 @@
       <input type="hidden" id="editingPresetId" />
       <input type="text" id="newPresetLabel" placeholder="Label (e.g. Follow Back Connect)" />
       <textarea id="newPresetIntent" rows="3" placeholder="Intent (e.g. Express genuine interest and invite them to connect, mention you'll follow back)"></textarea>
+      <select id="newPresetModel">
+        <option value="gpt-4.1-nano">gpt-4.1-nano (fastest, cheapest)</option>
+        <option value="gpt-4o-mini">gpt-4o-mini (fast, cheap, reliable)</option>
+        <option value="gpt-4.1-mini" selected>gpt-4.1-mini (best balance)</option>
+        <option value="gpt-4.1">gpt-4.1 (sharpest context reading, best nuance)</option>
+      </select>
       <div class="row">
         <button id="savePreset">Save Preset</button>
         <button id="cancelEdit" style="display:none">Cancel</button>

@@ -5,7 +5,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-async function handleGenerateReply({ tweetText, masterPrompt, presetIntent, imageUrls = [] }) {
+async function handleGenerateReply({ tweetText, masterPrompt, presetIntent, imageUrls = [], model = 'gpt-4.1-mini' }) {
   const { apiKey } = await chrome.storage.local.get('apiKey');
 
   if (!apiKey) {
@@ -47,7 +47,7 @@ async function handleGenerateReply({ tweetText, masterPrompt, presetIntent, imag
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: model,
         max_tokens: 100,
         temperature: 0.9,
         messages: [
