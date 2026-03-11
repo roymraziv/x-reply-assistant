@@ -9,6 +9,7 @@
   ],
   "host_permissions": [
     "https://x.com/*",
+    "https://x.com/i/api/*",
     "https://api.openai.com/*"
   ],
   "background": {

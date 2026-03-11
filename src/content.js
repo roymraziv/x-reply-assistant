@@ -1,6 +1,21 @@
 const REPLY_BTN_SELECTOR = '[data-testid="reply"]';
 const TWEET_TEXT_SELECTOR = '[data-testid="tweetText"]';
 const REPLY_BOX_SELECTOR = '[data-testid="tweetTextarea_0"]';
+const TWEET_ARTICLE_SELECTOR = 'article';
+const STATUS_LINK_SELECTOR = 'a[href*="/status/"]';
+const XRA_BADGE_SELECTOR = '.xra-follow-status';
+const FOLLOW_STATUS_TTL_MS = 10 * 60 * 1000;
+
+const followStatusCache = new Map();
+const inflightFollowStatus = new Set();
+const seenUserKeys = new Set();
+const followStatusAttemptTimes = new Map();
+const userBadgeRegistry = new Map();
+const lazyStatusObserver = new IntersectionObserver(onStatusBadgeIntersect, {
+  root: null,
+  threshold: 0.2
+});
+const FOLLOW_STATUS_RETRY_COOLDOWN_MS = 2 * 60 * 1000;
 
 // Debounce helper for performance
 function debounce(func, wait) {
@@ -28,6 +43,8 @@ function injectButtons() {
     const aiBtn = createAIButton(replyBtn);
     replyBtn.parentNode.insertBefore(aiBtn, replyBtn.nextSibling);
   });
+
+  injectFollowerStatusBadges();
 }
 
 function createAIButton(replyBtn) {
@@ -196,6 +213,234 @@ function waitForElement(selector, callback, timeout = 3000) {
       clearInterval(interval);
     }
   }, 100);
+}
+
+function injectFollowerStatusBadges() {
+  document.querySelectorAll(TWEET_ARTICLE_SELECTOR).forEach((article) => {
+    const author = extractAuthorIdentity(article);
+    if (!author) return;
+
+    const badge = ensureFollowStatusBadge(article, author.userKey);
+    registerBadge(author.userKey, badge);
+
+    const domStatus = detectDomRelationshipStatus(article);
+    if (domStatus !== 'unknown') {
+      setCachedFollowStatus(author.userKey, domStatus);
+      renderFollowStatusBadge(badge, domStatus, 'dom');
+      return;
+    }
+
+    const cached = getCachedFollowStatus(author.userKey);
+    if (cached) {
+      renderFollowStatusBadge(badge, cached, 'cache');
+      return;
+    }
+
+    if (!shouldAttemptFollowResolution(author.userKey)) {
+      renderFollowStatusBadge(badge, 'unknown', 'cooldown');
+      return;
+    }
+
+    renderFollowStatusBadge(badge, 'loading', 'pending');
+    badge.dataset.xraPendingUserKey = author.userKey;
+    badge.dataset.xraPendingScreenName = author.screenName;
+    lazyStatusObserver.observe(badge);
+  });
+}
+
+function extractAuthorIdentity(article) {
+  const statusLinks = article.querySelectorAll(STATUS_LINK_SELECTOR);
+  for (const link of statusLinks) {
+    const href = link.getAttribute('href') || '';
+    const match = href.match(/^\/([A-Za-z0-9_]{1,15})\/status\//);
+    if (!match) continue;
+
+    const screenName = match[1];
+    const userKey = screenName.toLowerCase();
+    return { screenName, userKey };
+  }
+  return null;
+}
+
+function detectDomRelationshipStatus(article) {
+  const articleText = (article.innerText || '').toLowerCase();
+  const followsYou = articleText.includes('follows you');
+
+  const followingButton = article.querySelector(
+    '[data-testid$="-unfollow"], button[aria-label*="Following"], div[role="button"][aria-label*="Following"]'
+  );
+  const followButton = article.querySelector(
+    '[data-testid$="-follow"], button[aria-label*="Follow"], div[role="button"][aria-label*="Follow"]'
+  );
+
+  let following;
+  if (followingButton) {
+    following = true;
+  } else if (followButton) {
+    following = false;
+  } else {
+    following = null;
+  }
+
+  if (followsYou && following === true) return 'mutual';
+  if (followsYou && following === false) return 'followsYou';
+  if (followsYou && following === null) return 'followsYou';
+  if (!followsYou && following === true) return 'followingOnly';
+  if (!followsYou && following === false) return 'none';
+  return 'unknown';
+}
+
+function ensureFollowStatusBadge(article, userKey) {
+  let badge = article.querySelector(`${XRA_BADGE_SELECTOR}[data-xra-user-key="${userKey}"]`);
+  if (badge) return badge;
+
+  badge = document.createElement('span');
+  badge.className = 'xra-follow-status';
+  badge.dataset.xraUserKey = userKey;
+  badge.style.cssText = [
+    'display:inline-flex',
+    'align-items:center',
+    'margin-left:6px',
+    'padding:1px 6px',
+    'border-radius:9999px',
+    'font-size:11px',
+    'font-weight:600',
+    'line-height:16px',
+    'vertical-align:middle',
+    'white-space:nowrap'
+  ].join(';');
+
+  const anchorForPlacement = article.querySelector(`${STATUS_LINK_SELECTOR} time`)?.closest('a')
+    || article.querySelector(STATUS_LINK_SELECTOR);
+  if (anchorForPlacement?.parentNode) {
+    anchorForPlacement.insertAdjacentElement('afterend', badge);
+  } else {
+    const fallbackTarget = article.querySelector('[data-testid="User-Name"]')
+      || article.querySelector('header')
+      || article.firstElementChild;
+    fallbackTarget?.appendChild(badge);
+  }
+
+  return badge;
+}
+
+function renderFollowStatusBadge(badge, status, source) {
+  const statusMap = {
+    loading: { label: 'Checking...', bg: 'rgba(113,118,123,0.20)', color: '#8899a6' },
+    followsYou: { label: 'Follows you', bg: 'rgba(0,186,124,0.20)', color: '#00ba7c' },
+    mutual: { label: 'Mutual', bg: 'rgba(29,155,240,0.20)', color: '#1d9bf0' },
+    followingOnly: { label: 'Following only', bg: 'rgba(255,212,0,0.20)', color: '#ffd400' },
+    none: { label: 'Not following', bg: 'rgba(244,33,46,0.18)', color: '#f4212e' },
+    unknown: { label: 'Unknown', bg: 'rgba(113,118,123,0.20)', color: '#71767b' }
+  };
+
+  const style = statusMap[status] || statusMap.unknown;
+  badge.textContent = style.label;
+  badge.style.background = style.bg;
+  badge.style.color = style.color;
+  badge.dataset.xraStatus = status;
+  badge.dataset.xraSource = source;
+
+  if (status === 'unknown') {
+    badge.style.display = 'none';
+  } else {
+    badge.style.display = 'inline-flex';
+  }
+}
+
+function registerBadge(userKey, badge) {
+  const existing = userBadgeRegistry.get(userKey) || new Set();
+  existing.add(badge);
+  userBadgeRegistry.set(userKey, existing);
+}
+
+function getCachedFollowStatus(userKey) {
+  const cached = followStatusCache.get(userKey);
+  if (!cached) return null;
+  if (Date.now() - cached.timestamp > FOLLOW_STATUS_TTL_MS) {
+    followStatusCache.delete(userKey);
+    return null;
+  }
+  return cached.status;
+}
+
+function setCachedFollowStatus(userKey, status) {
+  followStatusCache.set(userKey, {
+    status,
+    timestamp: Date.now()
+  });
+}
+
+function onStatusBadgeIntersect(entries) {
+  entries.forEach((entry) => {
+    if (!entry.isIntersecting) return;
+
+    const badge = entry.target;
+    lazyStatusObserver.unobserve(badge);
+
+    const userKey = badge.dataset.xraPendingUserKey;
+    const screenName = badge.dataset.xraPendingScreenName;
+    if (!userKey || !screenName) return;
+
+    resolveFollowStatusFromBackground(userKey, screenName);
+  });
+}
+
+async function resolveFollowStatusFromBackground(userKey, screenName) {
+  if (inflightFollowStatus.has(userKey)) return;
+  inflightFollowStatus.add(userKey);
+  seenUserKeys.add(userKey);
+  followStatusAttemptTimes.set(userKey, Date.now());
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: 'GET_FOLLOW_STATUS',
+      payload: {
+        userKey,
+        screenName,
+        csrfToken: getCookieValue('ct0')
+      }
+    });
+
+    const resolvedStatus = normalizeFollowStatus(response?.status);
+    if (resolvedStatus !== 'unknown') {
+      setCachedFollowStatus(userKey, resolvedStatus);
+    }
+    renderStatusForAllUserBadges(userKey, resolvedStatus, response?.source || 'network');
+  } catch (error) {
+    renderStatusForAllUserBadges(userKey, 'unknown', 'network_error');
+  } finally {
+    inflightFollowStatus.delete(userKey);
+  }
+}
+
+function shouldAttemptFollowResolution(userKey) {
+  if (!seenUserKeys.has(userKey)) return true;
+  const lastAttempt = followStatusAttemptTimes.get(userKey);
+  if (!lastAttempt) return true;
+  return Date.now() - lastAttempt > FOLLOW_STATUS_RETRY_COOLDOWN_MS;
+}
+
+function renderStatusForAllUserBadges(userKey, status, source) {
+  const badges = userBadgeRegistry.get(userKey);
+  if (!badges) return;
+  badges.forEach((badge) => {
+    renderFollowStatusBadge(badge, status, source);
+  });
+}
+
+function normalizeFollowStatus(status) {
+  const normalized = ['followsYou', 'mutual', 'followingOnly', 'none', 'unknown'];
+  return normalized.includes(status) ? status : 'unknown';
+}
+
+function getCookieValue(name) {
+  const cookies = document.cookie ? document.cookie.split('; ') : [];
+  for (const pair of cookies) {
+    const [key, value] = pair.split('=');
+    if (key === name) return decodeURIComponent(value || '');
+  }
+  return '';
 }
 
 // FR-04: Regenerate button implementation
